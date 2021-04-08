@@ -5,26 +5,17 @@ import argparse
 import json
 import time
 import re
-import random
 import pickle as pkl
 
-import h5py
-import progressbar
-from sklearn.metrics import f1_score
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
-import torch.nn.functional as F
 from allennlp.modules.elmo import Elmo, batch_to_ids
-# torch.multiprocessing.set_sharing_strategy('file_system')
 
 from dnee import utils
 from dnee.events import indices
-from dnee.models import EventTransR, EventTransE, NegativeSampler, ArgWordEncoder, create_argw_encoder
-from dnee.models import AttnEventTransR, AttnEventTransE
+from dnee.models import create_argw_encoder
 from dnee.evals import discourse_sense as ds
-from dnee.evals.confusion_matrix import Alphabet, ConfusionMatrix
-from dnee.models import skipthoughts as st
 
 
 def get_arguments(argv):
@@ -33,7 +24,7 @@ def get_arguments(argv):
                         help='preprocessed training data')
     parser.add_argument('ds_dev_rel_file', metavar='DS_DEV_REL_FILE',
                         help='gold relation file with events for dev')
-    
+
     parser.add_argument('model_file', metavar='MODEL_FILE',
                         help='modelf file.')
     parser.add_argument('encoder_file', metavar='ENCODER_FILE',
@@ -45,11 +36,14 @@ def get_arguments(argv):
     parser.add_argument('output_folder', metavar='OUTPUT_FOLDER',
                         help='output folder for models etc.')
 
-    parser.add_argument('-w', '--elmo_weight_file', default="data/elmo_2x2048_256_2048cnn_1xhighway_weights.hdf5",
+    parser.add_argument('-w', '--elmo_weight_file',
+                        default="data/elmo_2x2048_256_2048cnn_1xhighway_weights.hdf5",
                         help='ELMo weight file')
-    parser.add_argument('-p', '--elmo_option_file', default="data/elmo_2x2048_256_2048cnn_1xhighway_options.json",
+    parser.add_argument('-p', '--elmo_option_file',
+                        default="data/elmo_2x2048_256_2048cnn_1xhighway_options.json",
                         help='ELMo option file')
-    parser.add_argument('-s', '--no_dnee_scores', action='store_true', default=False,
+    parser.add_argument('-s', '--no_dnee_scores', action='store_true',
+                        default=False,
                         help='Not using DNEE scores as features')
     parser.add_argument('-n', '--dnee_train_fld', default=None,
                         help='DNEE training data')
@@ -72,13 +66,16 @@ def get_arguments(argv):
 
 
 def save(fld, model, optimizer, i_epoch, i_file, i_batch):
-    fpath = os.path.join(ld, "model_{}_{}_{}.pt".format(i_epoch, i_file, i_batch))
+    fpath = os.path.join(ld,
+                         "model_{}_{}_{}.pt".format(i_epoch, i_file, i_batch))
     torch.save(model.state_dict(), fpath)
-    
-    fpath = os.path.join(fld, "optim_{}_{}_{}.pt".format(i_epoch, i_file, i_batch))
+
+    fpath = os.path.join(fld,
+                         "optim_{}_{}_{}.pt".format(i_epoch, i_file, i_batch))
     torch.save(optimizer.state_dict(), fpath)
-    
-    fpath = os.path.join(fld, "argw_enc_{}_{}_{}.pt".format(i_epoch, i_file, i_batch))
+
+    fpath = os.path.join(fld, "argw_enc_{}_{}_{}.pt".format(i_epoch, i_file,
+                                                            i_batch))
     model.argw_encoder.save(fpath)
 
 
@@ -97,35 +94,48 @@ def main():
     config = json.load(open(args.training_config, 'r'))
 
     indices.set_relation_classes(args.relation_config)
-    pred2idx, idx2pred, _  = indices.load_predicates(config['predicate_indices'])
-    argw2idx, idx2argw, _  = indices.load_argw(config['argw_indices'])
+    pred2idx, idx2pred, _ = indices.load_predicates(config['predicate_indices'])
+    argw2idx, idx2argw, _ = indices.load_argw(config['argw_indices'])
 
     n_preds = len(pred2idx)
     argw_encoder = create_argw_encoder(config, args.device)
     argw_encoder.load(args.encoder_file)
-    
+
     logging.info("model class: " + config['model_type'])
     ModelClass = eval(config['model_type'])
-    dnee_model = ModelClass(config, argw_encoder, n_preds, args.device).to(args.device)
+    dnee_model = ModelClass(config, argw_encoder, n_preds, args.device).to(
+        args.device)
     dnee_model.load_state_dict(torch.load(args.model_file,
-                                    map_location=lambda storage, location: storage))
+                                          map_location=lambda storage,
+                                                              location: storage))
     dnee_model.eval()
-    
+
     elmo = Elmo(args.elmo_option_file, args.elmo_weight_file, 1, dropout=0)
     train_data = ds.DsDataset(args.ds_train_fld, args.dnee_train_fld)
-    
+
     dev_rels = [json.loads(line) for line in open(args.ds_dev_rel_file)]
-    dev_rels = [rel for rel in dev_rels if rel['Type'] != 'Explicit' and rel['Sense'][0] in indices.DISCOURSE_REL2IDX]
+    dev_rels = [rel for rel in dev_rels if
+                rel['Type'] != 'Explicit' and rel['Sense'][
+                    0] in indices.DISCOURSE_REL2IDX]
     dev_cm, dev_valid_senses = ds.create_cm(dev_rels, indices.DISCOURSE_REL2IDX)
 
     dnee_seq_len = train_data.dnee_seq_len if args.dnee_train_fld else None
-    x_dev, y_dev = ds.get_features(dev_rels, elmo, train_data.seq_len, dnee_model, dnee_seq_len, config, pred2idx, argw2idx, indices.DISCOURSE_REL2IDX,
-                                    device=args.device, use_dnee=(args.dnee_train_fld is not None))
+    x_dev, y_dev = ds.get_features(dev_rels, elmo, train_data.seq_len,
+                                   dnee_model, dnee_seq_len, config, pred2idx,
+                                   argw2idx, indices.DISCOURSE_REL2IDX,
+                                   device=args.device,
+                                   use_dnee=(args.dnee_train_fld is not None))
     x0_dev, x1_dev, x0_dnee_dev, x1_dnee_dev, x_dnee_dev = x_dev
     x0_dev, x1_dev = x0_dev.to(args.device), x1_dev.to(args.device)
 
-    model = ds.AttentionNN(len(indices.DISCOURSE_REL2IDX), event_dim=config['event_dim'], dropout=args.dropout, use_event=(args.dnee_train_fld is not None), use_dnee_scores=not args.no_dnee_scores).to(args.device)
-    optimizer = optim.Adagrad(filter(lambda p: p.requires_grad, model.parameters()), lr=args.learning_rate)
+    model = ds.AttentionNN(len(indices.DISCOURSE_REL2IDX),
+                           event_dim=config['event_dim'], dropout=args.dropout,
+                           use_event=(args.dnee_train_fld is not None),
+                           use_dnee_scores=not args.no_dnee_scores).to(
+        args.device)
+    optimizer = optim.Adagrad(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=args.learning_rate)
     logging.info("initial learning rate = {}".format(args.learning_rate))
     logging.info("dropout rate = {}".format(args.dropout))
 
@@ -136,9 +146,9 @@ def main():
     logging.info("batch_size = {}".format(args.batch_size))
     for i_epoch in range(args.n_epoches):
         train_loader = DataLoader(train_data,
-                                    batch_size=args.batch_size,
-                                    shuffle=True,
-                                    num_workers=1)
+                                  batch_size=args.batch_size,
+                                  shuffle=True,
+                                  num_workers=1)
 
         epoch_start = time.time()
         for i_batch, (x, y) in enumerate(train_loader):
@@ -171,22 +181,34 @@ def main():
             losses.append(loss.item())
 
             model.eval()
-            y_pred = model.predict(x0_dev, x1_dev, x0_dnee_dev, x1_dnee_dev, x_dnee_dev)
-            dev_prec, dev_recall, dev_f1 = ds.scoring_cm(y_dev, y_pred.cpu(), dev_cm, dev_valid_senses, indices.DISCOURSE_IDX2REL)
+            y_pred = model.predict(x0_dev, x1_dev, x0_dnee_dev, x1_dnee_dev,
+                                   x_dnee_dev)
+            dev_prec, dev_recall, dev_f1 = ds.scoring_cm(y_dev, y_pred.cpu(),
+                                                         dev_cm,
+                                                         dev_valid_senses,
+                                                         indices.DISCOURSE_IDX2REL)
             dev_f1s.append(dev_f1)
 
             ## if i_batch % config['n_batches_per_record'] == 0:
-            logging.info("{}, {}: loss={}, time={}".format(i_epoch, i_batch, loss.item(), time.time()-epoch_start))
-            logging.info("dev: prec={}, recall={}, f1={}".format(dev_prec, dev_recall, dev_f1))
+            logging.info(
+                "{}, {}: loss={}, time={}".format(i_epoch, i_batch, loss.item(),
+                                                  time.time() - epoch_start))
+            logging.info(
+                "dev: prec={}, recall={}, f1={}".format(dev_prec, dev_recall,
+                                                        dev_f1))
             if dev_f1 > best_dev_f1:
-                logging.info("best dev: prec={}, recall={}, f1={}".format(dev_prec, dev_recall, dev_f1))
+                logging.info(
+                    "best dev: prec={}, recall={}, f1={}".format(dev_prec,
+                                                                 dev_recall,
+                                                                 dev_f1))
                 best_dev_f1 = dev_f1
                 best_epoch = i_epoch
                 best_batch = i_batch
                 fpath = os.path.join(args.output_folder, 'best_model.pt')
                 torch.save(model.state_dict(), fpath)
 
-    logging.info("{}-{}: best dev f1 = {}".format(best_epoch, best_batch, best_dev_f1))
+    logging.info(
+        "{}-{}: best dev f1 = {}".format(best_epoch, best_batch, best_dev_f1))
     fpath = os.path.join(args.output_folder, "losses.pkl")
     pkl.dump(losses, open(fpath, 'wb'))
     fpath = os.path.join(args.output_folder, "dev_f1s.pkl")
