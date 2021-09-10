@@ -10,7 +10,8 @@ import torch.optim as optim
 import numpy as np
 from scipy import spatial
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from .events import indices, Event, extract_events
@@ -22,11 +23,13 @@ TEST_SPLIT = 1
 
 def micro_f1(y_true, y_pred, n_classes):
     """
-        multi class micro F1
+    multi class micro F1
     """
-    tps, fps, fns = torch.zeros(n_classes, dtype=torch.int32), \
-                        torch.zeros(n_classes, dtype=torch.int32), \
-                        torch.zeros(n_classes, dtype=torch.int32)
+    tps, fps, fns = (
+        torch.zeros(n_classes, dtype=torch.int32),
+        torch.zeros(n_classes, dtype=torch.int32),
+        torch.zeros(n_classes, dtype=torch.int32),
+    )
     for i in range(n_classes):
         prediction = (y_pred == i).float()
         truth = (y_true == i).float()
@@ -40,13 +43,21 @@ def micro_f1(y_true, y_pred, n_classes):
         #   0     where prediction is 0 and truth is 1 (False Negative)
 
         tps[i] = torch.sum(confusion_vector == 1).item()
-        fps[i] = torch.sum(confusion_vector == float('inf')).item()
+        fps[i] = torch.sum(confusion_vector == float("inf")).item()
         fns[i] = torch.sum(confusion_vector == 0).item()
     total_tps = tps.sum().float().item()
     total_fps = fps.sum().float().item()
     total_fns = fns.sum().float().item()
-    prec = total_tps / (total_tps + total_fps) if total_tps + total_fps != 0.0 else 0.0
-    rec = total_tps / (total_tps + total_fns) if total_tps + total_fns != 0.0 else 0.0
+    prec = (
+        total_tps / (total_tps + total_fps)
+        if total_tps + total_fps != 0.0
+        else 0.0
+    )
+    rec = (
+        total_tps / (total_tps + total_fns)
+        if total_tps + total_fns != 0.0
+        else 0.0
+    )
     if prec + rec == 0.0:
         f1 = 0.0
     else:
@@ -75,13 +86,13 @@ def parse_text(text, nlp, props):
 def load_splits(dev_list, test_list):
     def _load(fpath, label):
         splits = {}
-        with open(fpath, 'r') as fr:
+        with open(fpath, "r") as fr:
             for line in fr:
-                line = line.rstrip('\n')
-                did = '.'.join(line.split('.')[:-1])
+                line = line.rstrip("\n")
+                did = ".".join(line.split(".")[:-1])
                 splits[did] = label
         return splits
-    
+
     _dev = _load(dev_list, DEV_SPLIT)
     _test = _load(test_list, TEST_SPLIT)
     _test.update(_dev)
@@ -95,7 +106,7 @@ def plot_losses(losses, fpath):
         plt.xlabel("Batch")
         plt.ylabel("Loss")
         x = list(range(len(losses)))
-        plt.plot(x, losses, color='red', label='train', linestyle="-")
+        plt.plot(x, losses, color="red", label="train", linestyle="-")
         plt.savefig(fpath)
         plt.close(fig)
 
@@ -113,14 +124,17 @@ def bin_config(get_arg_func, log_fname=None):
     else:
         logger.setLevel(logging.ERROR)
 
-    formatter = logging.Formatter('[%(levelname)s][%(name)s] %(message)s')
+    formatter = logging.Formatter("[%(levelname)s][%(name)s] %(message)s")
     try:
         if not os.path.isdir(args.output_folder):
             os.mkdir(args.output_folder)
-        fpath = os.path.join(args.output_folder, log_fname) if log_fname \
-                else os.path.join(args.output_folder, 'log')
+        fpath = (
+            os.path.join(args.output_folder, log_fname)
+            if log_fname
+            else os.path.join(args.output_folder, "log")
+        )
     except:
-        fpath = log_fname if log_fname else 'log'
+        fpath = log_fname if log_fname else "log"
     fileHandler = logging.FileHandler(fpath)
     fileHandler.setFormatter(formatter)
     logger.addHandler(fileHandler)
@@ -133,7 +147,7 @@ def bin_config(get_arg_func, log_fname=None):
 
 def load_word_embeddings(fpath, use_torch=False, skip_first_line=False):
     we = {}
-    with open(fpath, 'r') as fr:
+    with open(fpath, "r") as fr:
         for line in fr:
             if skip_first_line:
                 skip_first_line = False
@@ -155,7 +169,7 @@ def get_avg_embeddings(words, embeddings):
             cnt += 1
 
     if cnt == 0:
-        emb = np.random.uniform(low=-1.0/dim, high=1.0/dim, size=300)
+        emb = np.random.uniform(low=-1.0 / dim, high=1.0 / dim, size=300)
         total_emb += emb
         cnt += 1
     return total_emb / cnt
@@ -166,7 +180,7 @@ def cosine_similarity(v1, v2):
 
 
 def oov_embeddings(dim):
-    return np.random.uniform(low=-1.0/dim, high=1.0/dim, size=dim)
+    return np.random.uniform(low=-1.0 / dim, high=1.0 / dim, size=dim)
 
 
 def load_jsons(fld_path, func_getid):
@@ -174,7 +188,7 @@ def load_jsons(fld_path, func_getid):
     docs = {}
     for f in files:
         fpath = os.path.join(fld_path, f)
-        doc = json.load(open(fpath, 'r'))
+        doc = json.load(open(fpath, "r"))
         did = func_getid(doc, f)
         docs[did] = doc
     return docs
@@ -189,46 +203,95 @@ def find_index(lis, target):
 
 
 def get_optimizer(model, config, **kwargs):
-    logging.info("optimizer: {}".format(config['optimizer']))
-    if config['optimizer'] == 'adam':
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
-    elif config['optimizer'] == 'adagrad':
-        if 'lr' in  kwargs:
-            optimizer = optim.Adagrad(filter(lambda p: p.requires_grad, model.parameters()), lr=kwargs['lr'])
+    logging.info("optimizer: {}".format(config["optimizer"]))
+    if config["optimizer"] == "adam":
+        optimizer = optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters())
+        )
+    elif config["optimizer"] == "adagrad":
+        if "lr" in kwargs:
+            optimizer = optim.Adagrad(
+                filter(lambda p: p.requires_grad, model.parameters()),
+                lr=kwargs["lr"],
+            )
         else:
-            optimizer = optim.Adagrad(filter(lambda p: p.requires_grad, model.parameters()))
-    elif config['optimizer'] == 'adadelta':
-        optimizer = optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()))
-    elif config['optimizer'] == 'momentum':
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=0.1, momentum=0.9)
+            optimizer = optim.Adagrad(
+                filter(lambda p: p.requires_grad, model.parameters())
+            )
+    elif config["optimizer"] == "adadelta":
+        optimizer = optim.Adadelta(
+            filter(lambda p: p.requires_grad, model.parameters())
+        )
+    elif config["optimizer"] == "momentum":
+        optimizer = optim.SGD(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=0.1,
+            momentum=0.9,
+        )
     else:
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=0.01)
+        optimizer = optim.SGD(
+            filter(lambda p: p.requires_grad, model.parameters()), lr=0.01
+        )
     return optimizer
 
 
-def get_raw_event_repr(e, config, pred2idx, argw2idx, device=None, use_head=False):
-    e_len = 1 + config['arg0_max_len'] + config['arg1_max_len']
-    raw = torch.zeros(e_len, dtype=torch.int64).to(device) if device else torch.zeros(e_len, dtype=torch.int64)
+def get_raw_event_repr(
+    e, config, pred2idx, argw2idx, device=None, use_head=False
+):
+    e_len = 1 + config["arg0_max_len"] + config["arg1_max_len"]
+    raw = (
+        torch.zeros(e_len, dtype=torch.int64).to(device)
+        if device
+        else torch.zeros(e_len, dtype=torch.int64)
+    )
     pred_idx = e.get_pred_index(pred2idx)
-    arg0_idxs = e.get_arg_indices(0, argw2idx, arg_len=config['arg0_max_len'], use_head=use_head)
-    arg1_idxs = e.get_arg_indices(1, argw2idx, arg_len=config['arg1_max_len'], use_head=use_head)
+    arg0_idxs = e.get_arg_indices(
+        0, argw2idx, arg_len=config["arg0_max_len"], use_head=use_head
+    )
+    arg1_idxs = e.get_arg_indices(
+        1, argw2idx, arg_len=config["arg1_max_len"], use_head=use_head
+    )
 
     raw[0] = pred_idx
-    raw[1: 1+len(arg0_idxs)] = torch.LongTensor(arg0_idxs).to(device) if device else torch.LongTensor(arg0_idxs)
-    raw[1+config['arg0_max_len']: 1+config['arg0_max_len']+len(arg1_idxs)] = torch.LongTensor(arg1_idxs).to(device) if device else torch.LongTensor(arg1_idxs)
+    raw[1 : 1 + len(arg0_idxs)] = (
+        torch.LongTensor(arg0_idxs).to(device)
+        if device
+        else torch.LongTensor(arg0_idxs)
+    )
+    raw[
+        1
+        + config["arg0_max_len"] : 1
+        + config["arg0_max_len"]
+        + len(arg1_idxs)
+    ] = (
+        torch.LongTensor(arg1_idxs).to(device)
+        if device
+        else torch.LongTensor(arg1_idxs)
+    )
     return raw
 
 
 def build_unknown_event():
-    return Event(indices.PRED_OOV, indices.NO_ARG, indices.NO_ARG, indices.NO_ARG, indices.NO_ARG,
-                        indices.NO_ARG, indices.NO_ARG, None, indices.UNKNOWN_ANIMACY,
-                        indices.UNKNOWN_ANIMACY, indices.UNKNOWN_ANIMACY)
+    return Event(
+        indices.PRED_OOV,
+        indices.NO_ARG,
+        indices.NO_ARG,
+        indices.NO_ARG,
+        indices.NO_ARG,
+        indices.NO_ARG,
+        indices.NO_ARG,
+        None,
+        indices.UNKNOWN_ANIMACY,
+        indices.UNKNOWN_ANIMACY,
+        indices.UNKNOWN_ANIMACY,
+    )
 
 
-def _extract_unique_events(doc, lemmatizer,
-        corenlp_dep_key="enhancedPlusPlusDependencies"):
+def _extract_unique_events(
+    doc, lemmatizer, corenlp_dep_key="enhancedPlusPlusDependencies"
+):
     """
-        corenlp_dep_key: collapsed-ccprocessed-dependencies
+    corenlp_dep_key: collapsed-ccprocessed-dependencies
     """
     events = _extract_events(doc, lemmatizer, corenlp_dep_key=corenlp_dep_key)
     # unique events
@@ -237,16 +300,20 @@ def _extract_unique_events(doc, lemmatizer,
         if evs is None:
             continue
         for ev in evs:
-            key = '{}_{}_{}_{}'.format(ev['sentidx'],
-                    ev['predicate_head_idx'],
-                    ev['predicate_head_char_idx_begin'],
-                    ev['predicate_head_char_idx_end'])
+            key = "{}_{}_{}_{}".format(
+                ev["sentidx"],
+                ev["predicate_head_idx"],
+                ev["predicate_head_char_idx_begin"],
+                ev["predicate_head_char_idx_end"],
+            )
             if key not in unique_events:
                 unique_events[key] = ev
     return list(unique_events.values())
 
 
-def _extract_events(doc, lemmatizer, corenlp_dep_key="enhancedPlusPlusDependencies"):
+def _extract_events(
+    doc, lemmatizer, corenlp_dep_key="enhancedPlusPlusDependencies"
+):
     sentences = doc["sentences"]
     doc_corefs = doc["corefs"]
     entities = extract_events.get_all_entities(doc_corefs)
@@ -254,36 +321,40 @@ def _extract_events(doc, lemmatizer, corenlp_dep_key="enhancedPlusPlusDependenci
     events = {}
     for coref_key, corefs in six.iteritems(doc_corefs):
         logging.debug("---------------------------")
-        logging.debug('coref_key=%s' % coref_key)
+        logging.debug("coref_key=%s" % coref_key)
 
         # for each entiy
         for entity in corefs:
-            ent_id = entity['id']
+            ent_id = entity["id"]
             if ent_id in events:
                 logging.warning("entity {} has been extracted.".format(ent_id))
                 continue
 
             tmp_events = extract_events.extract_one_multi_faceted_event(
-                    sentences, entities,
-                    entity, lemmatizer, add_sentence=True,
-                    no_sentiment=True,
-                    corenlp_dep_key=corenlp_dep_key)
+                sentences,
+                entities,
+                entity,
+                lemmatizer,
+                add_sentence=True,
+                no_sentiment=True,
+                corenlp_dep_key=corenlp_dep_key,
+            )
             events[ent_id] = tmp_events
     return events
 
 
 def save_indices(fpath, idx2item):
-    with open(fpath, 'w') as fw:
+    with open(fpath, "w") as fw:
         for i in range(len(idx2item)):
-            fw.write(idx2item[i]+'\n')
+            fw.write(idx2item[i] + "\n")
 
 
 def load_indices(fpath):
     item2idx, idx2item = {}, {}
-    with open(fpath, 'r') as fr:
+    with open(fpath, "r") as fr:
         i = 0
         for line in fr:
-            line = line.rstrip('\n')
+            line = line.rstrip("\n")
             item2idx[line] = i
             idx2item[i] = line
             i += 1

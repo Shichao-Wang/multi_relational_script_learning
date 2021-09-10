@@ -12,23 +12,25 @@ class EventChainDataset(Dataset):
         super(EventChainDataset, self).__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("loading dataset: {}".format(fpath))
-        self.logger.info('arg_lens={}'.format(arg_lens))
+        self.logger.info("arg_lens={}".format(arg_lens))
         self.n_args = n_args
         self.n_pos, self.n_neg = n_pos, n_neg
         self.fpath = fpath
         self._len = 0
-        with open(self.fpath, 'r') as fr:
+        with open(self.fpath, "r") as fr:
             self._len = len(fr.readlines()) - 1
 
     def __getitem__(self, idx):
-        line = linecache.getline(self.fpath, idx+1)
+        line = linecache.getline(self.fpath, idx + 1)
         indexed_events = json.loads(line)
-        
-        x = torch.zeros((1+n_args)*(n_pos+n_neg), dtype=torch.int64)
+
+        x = torch.zeros((1 + n_args) * (n_pos + n_neg), dtype=torch.int64)
         for i, ie in enumerate(indexed_events):
-            start = i * (1+n_args)
-            end = (i+1) * (1+n_args)
-            import pdb; pdb.set_trace()
+            start = i * (1 + n_args)
+            end = (i + 1) * (1 + n_args)
+            import pdb
+
+            pdb.set_trace()
             x[start:end] = ie
         return x
 

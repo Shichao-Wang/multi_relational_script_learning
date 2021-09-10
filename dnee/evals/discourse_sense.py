@@ -19,38 +19,48 @@ from ..events import Event, EventRelation
 from .confusion_matrix import Alphabet, ConfusionMatrix
 
 
-DNEE_SENSE_MAP_9REL = {'Temporal.Asynchronous.Precedence': 'Temporal.Asynchronous',
-                'Temporal.Asynchronous.Succession': 'Temporal.Asynchronous',
-                'Temporal.Synchrony': 'Temporal.Synchrony',
-                'Contingency.Cause.Reason': 'Contingency.Cause.Reason',
-                'Contingency.Cause.Result': 'Contingency.Cause.Result',
-                'Contingency.Condition': 'Contingency.Condition',
-                'Comparison.Contrast': 'Comparison.Contrast',
-                'Expansion.Conjunction': 'Expansion.Conjunction',
-                'Expansion.Instantiation': 'Expansion.Instantiation',
-                'Expansion.Restatement': 'Expansion.Restatement'
-                }
+DNEE_SENSE_MAP_9REL = {
+    "Temporal.Asynchronous.Precedence": "Temporal.Asynchronous",
+    "Temporal.Asynchronous.Succession": "Temporal.Asynchronous",
+    "Temporal.Synchrony": "Temporal.Synchrony",
+    "Contingency.Cause.Reason": "Contingency.Cause.Reason",
+    "Contingency.Cause.Result": "Contingency.Cause.Result",
+    "Contingency.Condition": "Contingency.Condition",
+    "Comparison.Contrast": "Comparison.Contrast",
+    "Expansion.Conjunction": "Expansion.Conjunction",
+    "Expansion.Instantiation": "Expansion.Instantiation",
+    "Expansion.Restatement": "Expansion.Restatement",
+}
 
-DNEE_SENSE_MAP_4REL = {'Temporal.Asynchronous.Precedence': 'Temporal',
-        'Temporal.Asynchronous.Succession': 'Temporal',
-        'Temporal.Synchrony': 'Temporal',
-        'Contingency.Cause.Reason': 'Contingency',
-        'Contingency.Cause.Result': 'Contingency',
-        'Contingency.Condition': 'Contingency',
-        'Comparison.Contrast': 'Comparison',
-        'Comparison.Concession': 'Comparison',
-        'Expansion.Conjunction': 'Expansion',
-        'Expansion.Instantiation': 'Expansion',
-        'Expansion.Restatement': 'Expansion',
-        'Expansion.Alternative': 'Expansion',
-        'Expansion.Alternative.Chosen alternative': 'Expansion',
-        'Expansion.Exception': 'Expansion'
-        }
+DNEE_SENSE_MAP_4REL = {
+    "Temporal.Asynchronous.Precedence": "Temporal",
+    "Temporal.Asynchronous.Succession": "Temporal",
+    "Temporal.Synchrony": "Temporal",
+    "Contingency.Cause.Reason": "Contingency",
+    "Contingency.Cause.Result": "Contingency",
+    "Contingency.Condition": "Contingency",
+    "Comparison.Contrast": "Comparison",
+    "Comparison.Concession": "Comparison",
+    "Expansion.Conjunction": "Expansion",
+    "Expansion.Instantiation": "Expansion",
+    "Expansion.Restatement": "Expansion",
+    "Expansion.Alternative": "Expansion",
+    "Expansion.Alternative.Chosen alternative": "Expansion",
+    "Expansion.Exception": "Expansion",
+}
 
 
 class AttentionNN(torch.nn.Module):
-    def __init__(self, n_rel_classes, arg_dim=512, dnee_score_dim=15, event_dim=None, dropout=0.0,
-            use_event=False, use_dnee_scores=True):
+    def __init__(
+        self,
+        n_rel_classes,
+        arg_dim=512,
+        dnee_score_dim=15,
+        event_dim=None,
+        dropout=0.0,
+        use_event=False,
+        use_dnee_scores=True,
+    ):
         super(AttentionNN, self).__init__()
         self.dropout = dropout
         self.arg_dim = arg_dim
@@ -60,18 +70,22 @@ class AttentionNN(torch.nn.Module):
         self.use_event = use_event
         self.use_dnee_scores = use_dnee_scores
 
-        self.arg_attn = torch.nn.Parameter(torch.FloatTensor(2, arg_dim), requires_grad=True)
+        self.arg_attn = torch.nn.Parameter(
+            torch.FloatTensor(2, arg_dim), requires_grad=True
+        )
         torch.nn.init.xavier_uniform_(self.arg_attn.data)
-        self.l1_0 = torch.nn.Linear(arg_dim, arg_dim//2)
-        self.l1_1 = torch.nn.Linear(arg_dim, arg_dim//2)
+        self.l1_0 = torch.nn.Linear(arg_dim, arg_dim // 2)
+        self.l1_1 = torch.nn.Linear(arg_dim, arg_dim // 2)
         if use_event:
-            self.event_attn = torch.nn.Parameter(torch.FloatTensor(2, event_dim), requires_grad=True)
+            self.event_attn = torch.nn.Parameter(
+                torch.FloatTensor(2, event_dim), requires_grad=True
+            )
             torch.nn.init.xavier_uniform_(self.event_attn.data)
-            self.l1_e0 = torch.nn.Linear(event_dim, event_dim//2)
-            self.l1_e1 = torch.nn.Linear(event_dim, event_dim//2)
-            
+            self.l1_e0 = torch.nn.Linear(event_dim, event_dim // 2)
+            self.l1_e1 = torch.nn.Linear(event_dim, event_dim // 2)
+
             self.l1_s = torch.nn.Linear(dnee_score_dim, dnee_score_dim)
-        
+
             torch.nn.init.xavier_uniform_(self.l1_e0.weight.data)
             torch.nn.init.xavier_uniform_(self.l1_e1.weight.data)
             self.l1_e0.bias.data.zero_()
@@ -84,15 +98,15 @@ class AttentionNN(torch.nn.Module):
         else:
             dim = arg_dim
         self.d1 = torch.nn.Dropout(p=self.dropout)
-        
-        self.l2= torch.nn.Linear(dim, dim//2)
+
+        self.l2 = torch.nn.Linear(dim, dim // 2)
         self.d2 = torch.nn.Dropout(p=self.dropout)
 
-        self.l3= torch.nn.Linear(dim//2, dim//4)
+        self.l3 = torch.nn.Linear(dim // 2, dim // 4)
         self.d3 = torch.nn.Dropout(p=self.dropout)
-        
-        self.l4= torch.nn.Linear(dim//4, n_rel_classes)
-        
+
+        self.l4 = torch.nn.Linear(dim // 4, n_rel_classes)
+
         torch.nn.init.xavier_uniform_(self.l1_0.weight.data)
         torch.nn.init.xavier_uniform_(self.l1_1.weight.data)
         torch.nn.init.xavier_uniform_(self.l2.weight.data)
@@ -109,7 +123,9 @@ class AttentionNN(torch.nn.Module):
     @staticmethod
     def attend_context(x, attn):
         attention_score = torch.matmul(x, attn).squeeze()
-        attention_score = F.softmax(attention_score, dim=1).view(x.size(0), x.size(1), 1)
+        attention_score = F.softmax(attention_score, dim=1).view(
+            x.size(0), x.size(1), 1
+        )
         scored_x = x * attention_score
         x_context = torch.sum(scored_x, dim=1)
         return x_context
@@ -119,7 +135,7 @@ class AttentionNN(torch.nn.Module):
         x1_context = self.attend_context(x1, self.arg_attn[1])
         out1_0 = F.relu(self.l1_0(x0_context))
         out1_1 = F.relu(self.l1_1(x1_context))
-    
+
         if self.use_event:
             e0_context = self.attend_context(x0_dnee, self.event_attn[0])
             e1_context = self.attend_context(x1_dnee, self.event_attn[1])
@@ -129,7 +145,9 @@ class AttentionNN(torch.nn.Module):
             if self.use_dnee_scores:
                 x_dnee = F.normalize(x_dnee)
                 out1_s = F.relu(self.l1_s(x_dnee))
-                out1 = torch.cat((out1_0, out1_1, out1_e0, out1_e1, out1_s), dim=1)
+                out1 = torch.cat(
+                    (out1_0, out1_1, out1_e0, out1_e1, out1_s), dim=1
+                )
             else:
                 out1 = torch.cat((out1_0, out1_1, out1_e0, out1_e1), dim=1)
         else:
@@ -154,11 +172,11 @@ class DsDataset(Dataset):
     def __init__(self, fld, dnee_fld=None):
         super(DsDataset, self).__init__()
         self.fld = fld
-        fpath = os.path.join(fld, 'data.h5')
+        fpath = os.path.join(fld, "data.h5")
         self.h5_file = h5py.File(fpath)
-        self.x0 = self.h5_file.get('x0')
-        self.x1 = self.h5_file.get('x1')
-        self.y = self.h5_file.get('y')
+        self.x0 = self.h5_file.get("x0")
+        self.x1 = self.h5_file.get("x1")
+        self.y = self.h5_file.get("y")
 
         self._len = self.y.shape[0]
         assert self.x0.shape[0] == self._len
@@ -167,13 +185,13 @@ class DsDataset(Dataset):
         self.dnee_fld = None
         if dnee_fld:
             self.dnee_fld = dnee_fld
-            fpath = os.path.join(dnee_fld, 'data.h5')
+            fpath = os.path.join(dnee_fld, "data.h5")
             self.h5_dnee = h5py.File(fpath)
-            self.x0_dnee = self.h5_dnee.get('x0_dnee')
-            self.x1_dnee = self.h5_dnee.get('x1_dnee')
+            self.x0_dnee = self.h5_dnee.get("x0_dnee")
+            self.x1_dnee = self.h5_dnee.get("x1_dnee")
             assert self.x0_dnee.shape == self.x1_dnee.shape
             self.dnee_seq_len = self.x0_dnee[0].shape[0]
-            self.x_dnee_score = self.h5_dnee.get('x_dnee_score')
+            self.x_dnee_score = self.h5_dnee.get("x_dnee_score")
             assert self.x0_dnee.shape[0] == self._len
             assert self.x_dnee_score.shape[0] == self._len
 
@@ -193,42 +211,65 @@ class DsDataset(Dataset):
         return self._len
 
 
-def get_features(rels, elmo, elmo_seq_len, model, event_seq_len, config, pred2idx, argw2idx, rel2idx, device=None, use_dnee=False):
-    x0_elmo, x1_elmo, y_elmo = elmo_features(elmo, rels, rel2idx, seq_len=elmo_seq_len)
+def get_features(
+    rels,
+    elmo,
+    elmo_seq_len,
+    model,
+    event_seq_len,
+    config,
+    pred2idx,
+    argw2idx,
+    rel2idx,
+    device=None,
+    use_dnee=False,
+):
+    x0_elmo, x1_elmo, y_elmo = elmo_features(
+        elmo, rels, rel2idx, seq_len=elmo_seq_len
+    )
     x0_dnee, x1_dnee, x_dnee_score = None, None, None
     if use_dnee:
-        x_dnee_score, _ = dnee_score_features(rels, model, config, pred2idx, argw2idx,
-                                                rel2idx, device)
-        x0_dnee, x1_dnee, y_dnee = dnee_ee_features(rels, model, config, pred2idx, argw2idx, event_seq_len,
-                                                rel2idx, device)
+        x_dnee_score, _ = dnee_score_features(
+            rels, model, config, pred2idx, argw2idx, rel2idx, device
+        )
+        x0_dnee, x1_dnee, y_dnee = dnee_ee_features(
+            rels,
+            model,
+            config,
+            pred2idx,
+            argw2idx,
+            event_seq_len,
+            rel2idx,
+            device,
+        )
     return (x0_elmo, x1_elmo, x0_dnee, x1_dnee, x_dnee_score), y_elmo
 
 
 def elmo_features(elmo, rels, rel2idx, seq_len=None):
-    arg0s = [word_tokenize(rel['Arg1']['RawText']) for rel in rels]
+    arg0s = [word_tokenize(rel["Arg1"]["RawText"]) for rel in rels]
     char_ids = batch_to_ids(arg0s)
-    a0we = elmo(char_ids)['elmo_representations'][0]
-    
-    arg1s = [word_tokenize(rel['Arg2']['RawText']) for rel in rels]
+    a0we = elmo(char_ids)["elmo_representations"][0]
+
+    arg1s = [word_tokenize(rel["Arg2"]["RawText"]) for rel in rels]
     char_ids = batch_to_ids(arg1s)
-    a1we = elmo(char_ids)['elmo_representations'][0]
-    
-    ys = torch.LongTensor([rel2idx[rel['Sense'][0]] for rel in rels])
-    
-    if seq_len: 
+    a1we = elmo(char_ids)["elmo_representations"][0]
+
+    ys = torch.LongTensor([rel2idx[rel["Sense"][0]] for rel in rels])
+
+    if seq_len:
         if a0we.shape[1] > seq_len:
             a0we = a0we[:, :seq_len, :]
         elif a0we.shape[1] < seq_len:
             dims = (a0we.shape[0], seq_len, a0we.shape[2])
             tmp = torch.zeros(dims, dtype=torch.float32)
-            tmp[:, :a0we.shape[1]] = a0we
+            tmp[:, : a0we.shape[1]] = a0we
             a0we = tmp
         if a1we.shape[1] > seq_len:
             a1we = a1we[:, :seq_len, :]
         elif a1we.shape[1] < seq_len:
             dims = (a1we.shape[0], seq_len, a1we.shape[2])
             tmp = torch.zeros(dims, dtype=torch.float32)
-            tmp[:, :a1we.shape[1]] = a1we
+            tmp[:, : a1we.shape[1]] = a1we
             a1we = tmp
     return a0we, a1we, ys
 
@@ -251,8 +292,8 @@ def we_comb_func(toks, we):
 def we_features(rels, we, comb_func, device):
     we0s, we1s = [], []
     for i_rel, rel in enumerate(rels):
-        a0 = clean_and_tokenize(rel['Arg1']['RawText'])
-        a1 = clean_and_tokenize(rel['Arg2']['RawText'])
+        a0 = clean_and_tokenize(rel["Arg1"]["RawText"])
+        a1 = clean_and_tokenize(rel["Arg2"]["RawText"])
 
         we0 = comb_func(a0, we)
         we0s.append(we0)
@@ -267,21 +308,26 @@ def st_features(rels, model, config, argw2idx, unknown_word, device):
     a0s, a1s = [], []
     max_len, max_len = 0, 0
     for i_rel, rel in enumerate(rels):
-        a0 = encode_argument(rel['Arg1']['RawText'].lower(), argw2idx, unknown_word)
+        a0 = encode_argument(
+            rel["Arg1"]["RawText"].lower(), argw2idx, unknown_word
+        )
         if len(a0) > max_len:
             max_len = len(a0)
         a0s.append(a0)
-        a1 = encode_argument(rel['Arg2']['RawText'].lower(), argw2idx, unknown_word)
+        a1 = encode_argument(
+            rel["Arg2"]["RawText"].lower(), argw2idx, unknown_word
+        )
         if len(a1) > max_len:
             max_len = len(a1)
         a1s.append(a1)
 
     ta0s, ta1s = [], []
     for a0, a1 in zip(a0s, a1s):
-        t0, t1 = torch.zeros(max_len, dtype=torch.int64), \
-                torch.zeros(max_len, dtype=torch.int64)
-        t0[:len(a0)] = torch.LongTensor(a0)
-        t1[:len(a1)] = torch.LongTensor(a1)
+        t0, t1 = torch.zeros(max_len, dtype=torch.int64), torch.zeros(
+            max_len, dtype=torch.int64
+        )
+        t0[: len(a0)] = torch.LongTensor(a0)
+        t1[: len(a1)] = torch.LongTensor(a1)
         ta0s.append(t0)
         ta1s.append(t1)
     a0s = torch.stack(ta0s, dim=0).to(device)
@@ -292,32 +338,64 @@ def st_features(rels, model, config, argw2idx, unknown_word, device):
     return f0, f1
 
 
-def get_raw_event_repr(e, config, pred2idx, argw2idx, device=None, use_head=False):
-    e_len = 1 + config['arg0_max_len'] + config['arg1_max_len']
-    raw = torch.zeros(e_len, dtype=torch.int64).to(device) if device else torch.zeros(e_len, dtype=torch.int64)
+def get_raw_event_repr(
+    e, config, pred2idx, argw2idx, device=None, use_head=False
+):
+    e_len = 1 + config["arg0_max_len"] + config["arg1_max_len"]
+    raw = (
+        torch.zeros(e_len, dtype=torch.int64).to(device)
+        if device
+        else torch.zeros(e_len, dtype=torch.int64)
+    )
     pred_idx = e.get_pred_index(pred2idx)
-    arg0_idxs = e.get_arg_indices(0, argw2idx, arg_len=config['arg0_max_len'], use_head=use_head)
-    arg1_idxs = e.get_arg_indices(1, argw2idx, arg_len=config['arg1_max_len'], use_head=use_head)
+    arg0_idxs = e.get_arg_indices(
+        0, argw2idx, arg_len=config["arg0_max_len"], use_head=use_head
+    )
+    arg1_idxs = e.get_arg_indices(
+        1, argw2idx, arg_len=config["arg1_max_len"], use_head=use_head
+    )
 
     raw[0] = pred_idx
-    raw[1: 1+len(arg0_idxs)] = torch.LongTensor(arg0_idxs).to(device) if device else torch.LongTensor(arg0_idxs)
-    raw[1+config['arg0_max_len']: 1+config['arg0_max_len']+len(arg1_idxs)] = torch.LongTensor(arg1_idxs).to(device) if device else torch.LongTensor(arg1_idxs)
+    raw[1 : 1 + len(arg0_idxs)] = (
+        torch.LongTensor(arg0_idxs).to(device)
+        if device
+        else torch.LongTensor(arg0_idxs)
+    )
+    raw[
+        1
+        + config["arg0_max_len"] : 1
+        + config["arg0_max_len"]
+        + len(arg1_idxs)
+    ] = (
+        torch.LongTensor(arg1_idxs).to(device)
+        if device
+        else torch.LongTensor(arg1_idxs)
+    )
     return raw
 
 
-def dnee_ee_features(rels, model, config, pred2idx, argw2idx, max_event_len, rel2idx, device=None):
+def dnee_ee_features(
+    rels,
+    model,
+    config,
+    pred2idx,
+    argw2idx,
+    max_event_len,
+    rel2idx,
+    device=None,
+):
     x1_idx = 0
     x2_idx = 0
     gold2e1xs = {}
     gold2e2xs = {}
     x1s, x2s = [], []
-    arg_lens = [config['arg0_max_len'], config['arg1_max_len']]
+    arg_lens = [config["arg0_max_len"], config["arg1_max_len"]]
     for i_rel, rel in enumerate(rels):
-        s = rel['Sense'][0]
-        if len(rel['Arg1']['Events']) == 0:
+        s = rel["Sense"][0]
+        if len(rel["Arg1"]["Events"]) == 0:
             continue
-        
-        e1s = unique_event_dict(rel['Arg1']['Events'], pred2idx).values()
+
+        e1s = unique_event_dict(rel["Arg1"]["Events"], pred2idx).values()
         for e1 in e1s:
             e1r = get_raw_event_repr(e1, config, pred2idx, argw2idx, device)
             x1s.append(e1r)
@@ -327,7 +405,7 @@ def dnee_ee_features(rels, model, config, pred2idx, argw2idx, max_event_len, rel
                 gold2e1xs[i_rel] = [x1_idx]
             x1_idx += 1
 
-        e2s = unique_event_dict(rel['Arg2']['Events'], pred2idx).values()
+        e2s = unique_event_dict(rel["Arg2"]["Events"], pred2idx).values()
         for e2 in e2s:
             e2r = get_raw_event_repr(e2, config, pred2idx, argw2idx, device)
             x2s.append(e2r)
@@ -346,31 +424,35 @@ def dnee_ee_features(rels, model, config, pred2idx, argw2idx, max_event_len, rel
         x1ee = model.embed_event(x1s)
         x2ee = model.embed_event(x2s)
 
-    x1_out = torch.zeros((len(rels), max_event_len, x1ee.shape[1]), dtype=torch.float32)
-    x2_out = torch.zeros((len(rels), max_event_len, x2ee.shape[1]), dtype=torch.float32)
+    x1_out = torch.zeros(
+        (len(rels), max_event_len, x1ee.shape[1]), dtype=torch.float32
+    )
+    x2_out = torch.zeros(
+        (len(rels), max_event_len, x2ee.shape[1]), dtype=torch.float32
+    )
     y = torch.LongTensor(len(rels))
     if device:
         x1_out = x1_out.to(device)
         x2_out = x2_out.to(device)
         y = y.to(device)
     for i_rel, rel in enumerate(rels):
-        s = rel['Sense'][0]
+        s = rel["Sense"][0]
         y[i_rel] = rel2idx[s]
-        
+
         # combine scores for multiple event pairs
         if i_rel in gold2e1xs:
             idxs = gold2e1xs[i_rel]
             fs = x1ee[idxs, :]
             if fs.shape[0] > max_event_len:
                 fs = fs[:max_event_len, :]
-            x1_out[i_rel, :fs.shape[0]] = fs
-        
+            x1_out[i_rel, : fs.shape[0]] = fs
+
         if i_rel in gold2e2xs:
             idxs = gold2e2xs[i_rel]
             fs = x2ee[idxs, :]
             if fs.shape[0] > max_event_len:
                 fs = fs[:max_event_len, :]
-            x2_out[i_rel, :fs.shape[0]] = fs
+            x2_out[i_rel, : fs.shape[0]] = fs
     return x1_out, x2_out, y
 
 
@@ -386,26 +468,30 @@ def unique_event_dict(edict, pred2idx):
     return out
 
 
-def dnee_score_features(rels, model, config, pred2idx, argw2idx, rel2idx, device=None):
+def dnee_score_features(
+    rels, model, config, pred2idx, argw2idx, rel2idx, device=None
+):
     x_idx = 0
     gold2xs = {}
     xs = []
-    arg_lens = [config['arg0_max_len'], config['arg1_max_len']]
+    arg_lens = [config["arg0_max_len"], config["arg1_max_len"]]
     for i_rel, rel in enumerate(rels):
-        s = rel['Sense'][0]
-        if len(rel['Arg1']['Events']) == 0:
+        s = rel["Sense"][0]
+        if len(rel["Arg1"]["Events"]) == 0:
             continue
-        
-        e1s = unique_event_dict(rel['Arg1']['Events'], pred2idx).values()
-        e2s = unique_event_dict(rel['Arg2']['Events'], pred2idx).values()
+
+        e1s = unique_event_dict(rel["Arg1"]["Events"], pred2idx).values()
+        e2s = unique_event_dict(rel["Arg2"]["Events"], pred2idx).values()
         for e1 in e1s:
             for e2 in e2s:
                 erel = EventRelation(e1, e2, s)
                 # if not erel.is_valid(pred2idx, config):
-                    # continue
+                # continue
                 if not erel.valid_pred(pred2idx):
                     continue
-                raw = erel.to_indices(pred2idx, argw2idx, use_head=False, arg_len=arg_lens[0])
+                raw = erel.to_indices(
+                    pred2idx, argw2idx, use_head=False, arg_len=arg_lens[0]
+                )
                 x = EventRelationDataset.raw2x(raw, arg_lens)
                 xs.append(x)
                 if i_rel in gold2xs:
@@ -417,16 +503,16 @@ def dnee_score_features(rels, model, config, pred2idx, argw2idx, rel2idx, device
     if device:
         xs = xs.to(device)
     scores = _scores_by_relations(model, xs, len(rel2idx), device)
-    
+
     x_out = torch.zeros((len(rels), len(rel2idx)), dtype=torch.float32)
     y = torch.LongTensor(len(rels))
     if device:
         x_out = x_out.to(device)
         y = y.to(device)
     for i_rel, rel in enumerate(rels):
-        s = rel['Sense'][0]
+        s = rel["Sense"][0]
         y[i_rel] = rel2idx[s]
-        
+
         # combine scores for multiple event pairs
         if i_rel in gold2xs:
             idxs = gold2xs[i_rel]
@@ -440,26 +526,26 @@ def dnee_score_features(rels, model, config, pred2idx, argw2idx, rel2idx, device
 
 def rel_output(rel, predicted_sense):
     new_rel = {}
-    new_rel['DocID'] = rel['DocID']
-    new_rel['ID'] = rel['ID']
+    new_rel["DocID"] = rel["DocID"]
+    new_rel["ID"] = rel["ID"]
 
-    new_rel['Arg1'] = {}
-    new_rel['Arg1']['TokenList'] = []
-    for tok in rel['Arg1']['TokenList']:
-        new_rel['Arg1']['TokenList'].append(tok[2])
+    new_rel["Arg1"] = {}
+    new_rel["Arg1"]["TokenList"] = []
+    for tok in rel["Arg1"]["TokenList"]:
+        new_rel["Arg1"]["TokenList"].append(tok[2])
 
-    new_rel['Arg2'] = {}
-    new_rel['Arg2']['TokenList'] = []
-    for tok in rel['Arg2']['TokenList']:
-        new_rel['Arg2']['TokenList'].append(tok[2])
-        
-    new_rel['Connective'] = {}
-    new_rel['Connective']['TokenList'] = []
-    for tok in rel['Connective']['TokenList']:
-        new_rel['Connective']['TokenList'].append(tok[2])
-    
-    new_rel['Sense'] = [predicted_sense]
-    new_rel['Type'] = rel['Type']
+    new_rel["Arg2"] = {}
+    new_rel["Arg2"]["TokenList"] = []
+    for tok in rel["Arg2"]["TokenList"]:
+        new_rel["Arg2"]["TokenList"].append(tok[2])
+
+    new_rel["Connective"] = {}
+    new_rel["Connective"]["TokenList"] = []
+    for tok in rel["Connective"]["TokenList"]:
+        new_rel["Connective"]["TokenList"].append(tok[2])
+
+    new_rel["Sense"] = [predicted_sense]
+    new_rel["Type"] = rel["Type"]
     return new_rel
 
 
@@ -467,7 +553,7 @@ def create_cm(rels, rel2idx):
     valid_senses = set()
     sense_alphabet = Alphabet()
     for i, rel in enumerate(rels):
-        s = rel['Sense'][0]
+        s = rel["Sense"][0]
         if s in rel2idx:
             sense_alphabet.add(s)
             valid_senses.add(s)
@@ -493,7 +579,11 @@ def scoring_cm(y, y_pred, cm, valid_senses, idx2rel):
 def process_dev(fpath, arg_lens, pred2idx, argw2idx, config, rel2idx, device):
     rels = [json.loads(line) for line in open(fpath)]
     # we only care about implicit
-    rels = [rel for rel in rels if rel['Type'] != 'Explicit' and rel['Sense'][0] in rel2idx]
+    rels = [
+        rel
+        for rel in rels
+        if rel["Type"] != "Explicit" and rel["Sense"][0] in rel2idx
+    ]
 
     valid_senses = set()
     sense_alphabet = Alphabet()
@@ -502,23 +592,23 @@ def process_dev(fpath, arg_lens, pred2idx, argw2idx, config, rel2idx, device):
     gold2xs = {}
     x_idx = 0
     for i, rel in enumerate(rels):
-        s = rel['Sense'][0]
+        s = rel["Sense"][0]
         if s in rel2idx:
             sense_alphabet.add(s)
             valid_senses.add(s)
 
-        if len(rel['Arg1']['Events']) == 0:
+        if len(rel["Arg1"]["Events"]) == 0:
             backoff_idxs.append(i)
             continue
 
         # build features
-        rtype = rel['Sense'][0] # for prediction it doesn't matter
+        rtype = rel["Sense"][0]  # for prediction it doesn't matter
         e1s = []
-        for mid, es in six.iteritems(rel['Arg1']['Events']):
+        for mid, es in six.iteritems(rel["Arg1"]["Events"]):
             for e in es:
                 e1s.append(e)
         e2s = []
-        for mid, es in six.iteritems(rel['Arg2']['Events']):
+        for mid, es in six.iteritems(rel["Arg2"]["Events"]):
             for e in es:
                 e2s.append(e)
         sub_xs = []
@@ -573,10 +663,20 @@ def _predict(model, xs, n_rels):
 
 
 def _model_backoff(rel, rel2idx):
-    return rel2idx['Expansion.Conjunction']
+    return rel2idx["Expansion.Conjunction"]
 
 
-def scoring(gold2xs, backoff_idxs, rels, y_pred, n_rels, cm, valid_senses, rel2idx, idx2rel):
+def scoring(
+    gold2xs,
+    backoff_idxs,
+    rels,
+    y_pred,
+    n_rels,
+    cm,
+    valid_senses,
+    rel2idx,
+    idx2rel,
+):
     cm.matrix.fill(0)
     for i, rel in enumerate(rels):
         if i in gold2xs:
@@ -596,7 +696,7 @@ def scoring(gold2xs, backoff_idxs, rels, y_pred, n_rels, cm, valid_senses, rel2i
         pred_answer = idx2rel[final_pred]
         if pred_answer not in valid_senses:
             pred_answer = ConfusionMatrix.NEGATIVE_CLASS
-        cm.add(pred_answer, rel['Sense'][0])
+        cm.add(pred_answer, rel["Sense"][0])
     prec, recall, f1 = cm.compute_micro_average_f1()
     return f1
 
@@ -604,31 +704,55 @@ def scoring(gold2xs, backoff_idxs, rels, y_pred, n_rels, cm, valid_senses, rel2i
 def _eval(model, data, n_rels, rel2idx, idx2rel):
     xs, gold2xs, backoff_idxs, rels, cm, valid_senses = data
     y_pred = _predict(model, xs, n_rels)
-    micro_f1 = scoring(gold2xs, backoff_idxs, rels, y_pred, n_rels, cm, valid_senses, rel2idx, idx2rel)
+    micro_f1 = scoring(
+        gold2xs,
+        backoff_idxs,
+        rels,
+        y_pred,
+        n_rels,
+        cm,
+        valid_senses,
+        rel2idx,
+        idx2rel,
+    )
     return micro_f1
 
 
 class DiscourseScorer(torch.nn.Module):
-    def __init__(self, config, arg_dim, dnee_model, dnee_rel2idx, ds_rel2idx, use_we=True):
+    def __init__(
+        self,
+        config,
+        arg_dim,
+        dnee_model,
+        dnee_rel2idx,
+        ds_rel2idx,
+        use_we=True,
+    ):
         super(DiscourseScorer, self).__init__()
-        self.rel_embeddings = torch.nn.Embedding(len(ds_rel2idx), config['rel_dim'])
+        self.rel_embeddings = torch.nn.Embedding(
+            len(ds_rel2idx), config["rel_dim"]
+        )
         self.init_rel_embeddings(dnee_model, dnee_rel2idx, config)
-        
-        self.use_we = use_we
-        self.a1_linear = torch.nn.Linear(arg_dim, config['rel_dim'])
-        self.a2_linear = torch.nn.Linear(arg_dim, config['rel_dim'])
-        self.h1_linear = torch.nn.Linear(config['rel_dim']*3, config['rel_dim'])
-        self.h2_linear = torch.nn.Linear(config['rel_dim'], 1)
 
-    def init_rel_embeddings(self, dnee_model, dnee_rel2idx, ds_rel2idx, config):
-        tmp_weights = torch.FloatTensor(len(ds_rel2idx), config['rel_dim'])
+        self.use_we = use_we
+        self.a1_linear = torch.nn.Linear(arg_dim, config["rel_dim"])
+        self.a2_linear = torch.nn.Linear(arg_dim, config["rel_dim"])
+        self.h1_linear = torch.nn.Linear(
+            config["rel_dim"] * 3, config["rel_dim"]
+        )
+        self.h2_linear = torch.nn.Linear(config["rel_dim"], 1)
+
+    def init_rel_embeddings(
+        self, dnee_model, dnee_rel2idx, ds_rel2idx, config
+    ):
+        tmp_weights = torch.FloatTensor(len(ds_rel2idx), config["rel_dim"])
         torch.nn.init.xavier_uniform(tmp_weights)
         if len(dnee_rel2idx) == 6:
             dnee_sense_map = DNEE_SENSE_MAP_4REL
         elif len(dnee_rel2idx) == 11:
             dnee_sense_map = DNEE_SENSE_MAP_9REL
         else:
-            raise ValueError('unsupported DNEE SENSE mapping')
+            raise ValueError("unsupported DNEE SENSE mapping")
 
         for task_rel, dnee_rel in six.iteritems(dnee_sense_map):
             task_idx = ds_rel2idx[task_rel]
@@ -647,7 +771,7 @@ class DiscourseScorer(torch.nn.Module):
         a2 = F.relu(self.a2_linear(x_a2))
         rel = self.rel_embeddings(x_r)
         x = torch.cat((a1, a2, rel), 1)
-        
+
         h1 = F.relu(self.h1_linear(x))
         out = self.h2_linear(h1)
         return out
@@ -655,38 +779,63 @@ class DiscourseScorer(torch.nn.Module):
 
 class DiscourseSenseDataset(Dataset):
     def __init__(self, train_pos_data, train_neg_data):
-        self.pos_e1, self.pos_e2, self.pos_r, self.pos_w1, self.pos_w2, self.pos_y = train_pos_data
-        self.neg_e1, self.neg_e2, self.neg_r, self.neg_w1, self.neg_w2, self.neg_y = train_neg_data
+        (
+            self.pos_e1,
+            self.pos_e2,
+            self.pos_r,
+            self.pos_w1,
+            self.pos_w2,
+            self.pos_y,
+        ) = train_pos_data
+        (
+            self.neg_e1,
+            self.neg_e2,
+            self.neg_r,
+            self.neg_w1,
+            self.neg_w2,
+            self.neg_y,
+        ) = train_neg_data
 
     def __len__(self):
         return self.pos_e1.shape[0]
 
     def __getitem__(self, idx):
-        return (self.pos_e1[idx], self.pos_e2[idx], self.pos_r[idx], self.pos_w1[idx], self.pos_w2[idx], self.pos_y[idx]), \
-                (self.neg_e1[idx], self.neg_e2[idx], self.neg_r[idx], self.neg_w1[idx], self.neg_w2[idx], self.neg_y[idx])
+        return (
+            self.pos_e1[idx],
+            self.pos_e2[idx],
+            self.pos_r[idx],
+            self.pos_w1[idx],
+            self.pos_w2[idx],
+            self.pos_y[idx],
+        ), (
+            self.neg_e1[idx],
+            self.neg_e2[idx],
+            self.neg_r[idx],
+            self.neg_w1[idx],
+            self.neg_w2[idx],
+            self.neg_y[idx],
+        )
 
 
 def load_dataset(f, valid_senses):
-    pdtb_file = open(f, 'r')
+    pdtb_file = open(f, "r")
     relations = []
     cnt_invalid = 0
     for line in pdtb_file:
         rel = json.loads(line)
-        sense = rel['Sense'][0]
+        sense = rel["Sense"][0]
         if sense not in valid_senses:
             cnt_invalid += 1
             continue
         relations.append(rel)
     pdtb_file.close()
-    logging.info('cnt_invalid={}'.format(cnt_invalid))
+    logging.info("cnt_invalid={}".format(cnt_invalid))
     return relations
 
 
 def dump_dataset(f, rels):
-    out_file = open(f, 'w')
+    out_file = open(f, "w")
     for rel in rels:
-        jstr = json.dumps(rel) + '\n' 
+        jstr = json.dumps(rel) + "\n"
         out_file.write(jstr)
     out_file.close()
-
-

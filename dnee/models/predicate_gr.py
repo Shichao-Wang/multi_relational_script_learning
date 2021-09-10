@@ -20,38 +20,40 @@ from .. import utils
 
 def index_predicategr_from_event(e, e2idx):
     idxs = []
-    key = '{}:{}'.format(e.pred, e.dep)
+    key = "{}:{}".format(e.pred, e.dep)
     idx = e2idx[key] if key in e2idx else 0
     idxs.append(idx)
-    key = 'arg:{}'.format(e.arg0_head)
+    key = "arg:{}".format(e.arg0_head)
     idx = e2idx[key] if key in e2idx else 0
     idxs.append(idx)
-    key = 'arg:{}'.format(e.arg1_head)
+    key = "arg:{}".format(e.arg1_head)
     idx = e2idx[key] if key in e2idx else 0
     idxs.append(idx)
-    key = 'arg:{}'.format(e.arg2_head)
+    key = "arg:{}".format(e.arg2_head)
     idx = e2idx[key] if key in e2idx else 0
     idxs.append(idx)
     return idxs
 
 
 event_parser = None
+
+
 def index_predicategr_from_estr(estr, dep, e2idx):
     global event_parser
     if event_parser is None:
         event_parser = parse.compile("{pred}({arg0},{arg1},{arg2})")
 
     e = event_parser.parse(estr)
-    key = '{}:{}'.format(e['pred'], dep)
+    key = "{}:{}".format(e["pred"], dep)
     idx = e2idx[key] if key in e2idx else 0
     idxs.append(idx)
-    key = 'arg:{}'.format(e['arg0'])
+    key = "arg:{}".format(e["arg0"])
     idx = e2idx[key] if key in e2idx else 0
     idxs.append(idx)
-    key = 'arg:{}'.format(e['arg1'])
+    key = "arg:{}".format(e["arg1"])
     idx = e2idx[key] if key in e2idx else 0
     idxs.append(idx)
-    key = 'arg:{}'.format(e['arg2'])
+    key = "arg:{}".format(e["arg2"])
     idx = e2idx[key] if key in e2idx else 0
     idxs.append(idx)
     return idxs
@@ -68,7 +70,7 @@ def index_predicategr_example(e1, e2, nestr, e2idx):
 
 def load_word_embeddings(fpath, use_torch=False, skip_first_line=True):
     we = {}
-    with open(fpath, 'r') as fr:
+    with open(fpath, "r") as fr:
         for line in fr:
             if skip_first_line:
                 skip_first_line = False
@@ -86,7 +88,7 @@ class PredicateGrBase(object):
 
     def score(self, v1, v2):
         raise NotImplementedError
-        
+
     def cosine_similarity(self, v1, v2):
         if v1.sum() == 0 and v2.sum() == 0:
             return 1.0
@@ -102,16 +104,16 @@ class PredicateGrBase(object):
 class EventComp(nn.Module, PredicateGrBase):
     def __init__(self, config, verbose=True, dropout=0.3):
         super(EventComp, self).__init__()
-        self.event_dim = config['event_dim']
-        self.embedding_file = config['embedding_file']
+        self.event_dim = config["event_dim"]
+        self.embedding_file = config["embedding_file"]
         self.e2idx = self.idx2e = None
         self.load_word2vec_event_emb()
 
         # dimensions are form the original paper
-        self.arg_comp1_a1 = nn.Linear(self.event_dim*4, 600)
+        self.arg_comp1_a1 = nn.Linear(self.event_dim * 4, 600)
         self.tanh1_a1 = nn.Tanh()
         self.d1_a1 = nn.Dropout(p=dropout)
-        self.arg_comp1_a2 = nn.Linear(self.event_dim*4, 600)
+        self.arg_comp1_a2 = nn.Linear(self.event_dim * 4, 600)
         self.tanh1_a2 = nn.Tanh()
         self.d1_a2 = nn.Dropout(p=dropout)
 
@@ -141,7 +143,7 @@ class EventComp(nn.Module, PredicateGrBase):
         nn.init.xavier_uniform_(self.event_comp1.weight.data)
         nn.init.xavier_uniform_(self.event_comp2.weight.data)
         nn.init.xavier_uniform_(self.event_comp3.weight.data)
-    
+
     def predict_mcnc(self, ctx_events, choices):
         # the e2idx is not used
         all_idxs = []
@@ -167,17 +169,19 @@ class EventComp(nn.Module, PredicateGrBase):
         torch.save(self.state_dict(), fpath)
 
     def load(self, fld):
-        fpath = os.path.join(fld, 'model.pt')
-        self.load_state_dict(torch.load(fpath, map_location=lambda storage, location: storage))
+        fpath = os.path.join(fld, "model.pt")
+        self.load_state_dict(
+            torch.load(fpath, map_location=lambda storage, location: storage)
+        )
 
     def load_word2vec_event_emb(self):
         self.e2idx, self.idx2e = {}, {}
         n_embs = len([line for line in open(self.embedding_file)])
-        embs = np.zeros((n_embs+1, self.event_dim))
+        embs = np.zeros((n_embs + 1, self.event_dim))
         # leave index 0 as zero vector
-        with open(self.embedding_file, 'r') as fr:
+        with open(self.embedding_file, "r") as fr:
             for i, line in enumerate(fr):
-                line = line.rstrip('\n')
+                line = line.rstrip("\n")
                 sp = line.split(" ")
                 if i == 0:
                     self.n_embs = int(sp[0])
@@ -203,23 +207,26 @@ class EventComp(nn.Module, PredicateGrBase):
         out1_e2 = self.d2_a2(self.tanh2_a2(self.arg_comp2_a2(out1_e2)))
 
         epair = torch.cat((out1_e1, out1_e2), dim=1)
-        
+
         out2 = self.d_e1(self.tanh_e1(self.event_comp1(epair)))
         out2 = self.d_e2(self.tanh_e2(self.event_comp2(out2)))
         out2 = self.sigmoid(self.event_comp3(out2))
         return out2.squeeze()
-    
+
     def loss_func(self, cohs, eps=1e-12, lambda_l2=1e-3):
         pos_coh, neg_coh = cohs
         m = pos_coh.shape[0]
-        loss = torch.sum(-torch.log(pos_coh + eps) - torch.log(1 - neg_coh + eps)) / m
+        loss = (
+            torch.sum(-torch.log(pos_coh + eps) - torch.log(1 - neg_coh + eps))
+            / m
+        )
         # l2 doesn't work well here, let's do dropout
         # l2_reg = None
         # for w in self.parameters():
-            # if l2_reg is None:
-                # l2_reg = torch.sum(w ** 2)
-            # else:
-                # l2_reg += torch.sum(w ** 2)
+        # if l2_reg is None:
+        # l2_reg = torch.sum(w ** 2)
+        # else:
+        # l2_reg += torch.sum(w ** 2)
         # loss += (lambda_l2 * l2_reg)
         return loss
 
@@ -227,10 +234,12 @@ class EventComp(nn.Module, PredicateGrBase):
 class Word2Vec(PredicateGrBase):
     def __init__(self, config, verbose=True):
         super(Word2Vec, self).__init__()
-        fpath = config['embedding_file']
-        self.embs = load_word_embeddings(fpath, skip_first_line=config['emb_file_skip_first_line'])
+        fpath = config["embedding_file"]
+        self.embs = load_word_embeddings(
+            fpath, skip_first_line=config["emb_file_skip_first_line"]
+        )
         self.dim = self.embs[self.embs.keys()[0]].shape[0]
-    
+
     def score(self, v1, v2):
         return self.cosine_similarity(v1, v2)
 
@@ -250,8 +259,13 @@ class Word2Vec(PredicateGrBase):
             if e.arg2_head in self.embs:
                 emb += self.embs[e.arg2_head]
                 cnt += 1
-        return emb if cnt > 0 else np.random.uniform(
-                low=-1.0/self.dim, high=1.0/self.dim, size=self.dim)
+        return (
+            emb
+            if cnt > 0
+            else np.random.uniform(
+                low=-1.0 / self.dim, high=1.0 / self.dim, size=self.dim
+            )
+        )
 
     def predict_mcnc(self, ctx_events, choices):
         ctx_emb = self.aggr_emb(ctx_events)
@@ -275,19 +289,18 @@ class Word2Vec(PredicateGrBase):
 class Word2VecEvent(PredicateGrBase):
     def __init__(self, config, verbose=True):
         super(Word2VecEvent, self).__init__()
-        fpath = config['embedding_file']
+        fpath = config["embedding_file"]
         self.embs = load_word_embeddings(fpath)
         self.dim = self.embs[self.embs.keys()[0]].shape[0]
 
     def _make_predicate_key(self, pred, dep):
         return "{}:{}".format(pred, dep)
-    
+
     def _make_arg_key(self, arg):
         return "arg:{}".format(arg)
 
     def get_event_emb(self, e):
-        """summation
-        """
+        """summation"""
         emb = np.zeros(self.dim, dtype=np.float32)
         es = []
         key = self._make_predicate_key(e.pred, e.dep)
@@ -347,9 +360,11 @@ class CJ08(PredicateGrBase):
         super(CJ08, self).__init__()
         self.verbose = verbose
 
-        self.adj_m_fld = config['adj_matrix_folder']
+        self.adj_m_fld = config["adj_matrix_folder"]
         # self.adj_m = self.load_adj_m(os.path.join(adj_fld, 'adj_m.txt'))
-        self.e2idx, self.idx2e = utils.load_indices(os.path.join(self.adj_m_fld, 'index_file.txt'))
+        self.e2idx, self.idx2e = utils.load_indices(
+            os.path.join(self.adj_m_fld, "index_file.txt")
+        )
         self.ppmi_m = None
 
     @staticmethod
@@ -357,15 +372,15 @@ class CJ08(PredicateGrBase):
         m = {}
         with open(fpath) as fr:
             for line in fr:
-                line = line.rstrip('\n')
-                sp = line.split('\t')
+                line = line.rstrip("\n")
+                sp = line.split("\t")
                 if use_float:
                     m[literal_eval(sp[0])] = float(sp[1])
                 else:
                     m[literal_eval(sp[0])] = int(sp[1])
         return m
 
-    def train_ppmi(self, efreqs, adj_m ,e2idx, idx2e):
+    def train_ppmi(self, efreqs, adj_m, e2idx, idx2e):
         self.ppmi_m = self._ppmi_matrix(efreqs, adj_m, e2idx, idx2e)
 
     def _adj_total_freq(self, m):
@@ -374,15 +389,21 @@ class CJ08(PredicateGrBase):
         upper = (m.sum() - dsum) / 2.0
         return upper + dsum
 
-    def _ppmi_matrix(self, efreqs, adj_m ,e2idx, idx2e):
+    def _ppmi_matrix(self, efreqs, adj_m, e2idx, idx2e):
         ppmi_m = {}
         n_combs = sum(adj_m.values())
         freq_sum = sum([f for e, f in six.iteritems(efreqs)])
 
         if self.verbose:
             logging.info("learning PPMI...")
-            widgets = [progressbar.Percentage(), progressbar.Bar(), progressbar.ETA()]
-            bar = progressbar.ProgressBar(widgets=widgets, maxval=len(adj_m)).start()
+            widgets = [
+                progressbar.Percentage(),
+                progressbar.Bar(),
+                progressbar.ETA(),
+            ]
+            bar = progressbar.ProgressBar(
+                widgets=widgets, maxval=len(adj_m)
+            ).start()
             cnt = 0
         for k, v in six.iteritems(adj_m):
             idx1, idx2 = k
@@ -409,18 +430,20 @@ class CJ08(PredicateGrBase):
         return self.ppmi_m[idx0, idx1]
 
     def save(self, fld):
-        fpath = os.path.join(fld, 'ppmi.txt')
-        with open(fpath, 'w') as fw:
+        fpath = os.path.join(fld, "ppmi.txt")
+        with open(fpath, "w") as fw:
             for k, v in six.iteritems(self.ppmi_m):
-                fw.write('{}\t{}\n'.format(k, v))
+                fw.write("{}\t{}\n".format(k, v))
 
     def load(self, fld):
-        fpath = os.path.join(fld, 'ppmi.txt')
-        logging.info('loading {}...'.format(fpath))
+        fpath = os.path.join(fld, "ppmi.txt")
+        logging.info("loading {}...".format(fpath))
         self.ppmi_m = self.load_adj_m(fpath, use_float=True)
-        fpath = os.path.join(self.adj_m_fld, 'index_file.txt')
-        logging.info('loading {}...'.format(fpath))
-        self.e2idx, self.idx2e = utils.load_indices(os.path.join(self.adj_m_fld, 'index_file.txt'))
+        fpath = os.path.join(self.adj_m_fld, "index_file.txt")
+        logging.info("loading {}...".format(fpath))
+        self.e2idx, self.idx2e = utils.load_indices(
+            os.path.join(self.adj_m_fld, "index_file.txt")
+        )
 
     def predict_mcnc(self, ctx_events, choices):
         ctx_idxs = []
@@ -434,13 +457,19 @@ class CJ08(PredicateGrBase):
             estr = Event.cj08_format(ch.pred, ch.dep)
             ch_estrs.append(estr)
 
-        max_score = float('-inf')
+        max_score = float("-inf")
         pred = 0
         scores = [0.0] * len(ch_estrs)
         for i, ch in enumerate(ch_estrs):
             if ch in self.e2idx:
                 cidx = self.e2idx[ch]
-                scores[i] = sum([self.ppmi_m[(cidx, idx)] for idx in ctx_idxs if (cidx, idx) in self.ppmi_m])
+                scores[i] = sum(
+                    [
+                        self.ppmi_m[(cidx, idx)]
+                        for idx in ctx_idxs
+                        if (cidx, idx) in self.ppmi_m
+                    ]
+                )
             if scores[i] > max_score:
                 max_score = scores[i]
                 pred = i
@@ -450,67 +479,83 @@ class CJ08(PredicateGrBase):
 class SGNN(nn.Module):
     def __init__(self, config):
         super(SGNN, self).__init__()
-        n_preds = self.get_n_preds(config['predicate_indices'])
-        self.vocab = self.load_argw_vocabs(config['argw_indices'])
+        n_preds = self.get_n_preds(config["predicate_indices"])
+        self.vocab = self.load_argw_vocabs(config["argw_indices"])
         self.save = True
-        self.dir_st = config['skipthought_dir']
+        self.dir_st = config["skipthought_dir"]
         self.embeddings = self._load_embeddings()
-        import pdb; pdb.set_trace()
-    
+        import pdb
+
+        pdb.set_trace()
+
     @staticmethod
     def get_n_preds(fpath):
-        pred2idx, idx2pred, _  = indices.load_predicates(fpath)
+        pred2idx, idx2pred, _ = indices.load_predicates(fpath)
         return len(pred2idx)
 
     def _load_dictionary(self):
-        path_dico = os.path.join(self.dir_st, 'dictionary.txt')
-        with open(path_dico, 'r') as handle:
+        path_dico = os.path.join(self.dir_st, "dictionary.txt")
+        with open(path_dico, "r") as handle:
             dico_list = handle.readlines()
-        dico = {word.strip():idx for idx,word in enumerate(dico_list)}
+        dico = {word.strip(): idx for idx, word in enumerate(dico_list)}
         return dico
 
     def _get_table_name(self):
-        return 'btable'
+        return "btable"
 
     def _load_emb_params(self):
         table_name = self._get_table_name()
-        path_params = os.path.join(self.dir_st, table_name+'.npy')
-        params = numpy.load(path_params, encoding='latin1') # to load from python2
+        path_params = os.path.join(self.dir_st, table_name + ".npy")
+        params = numpy.load(
+            path_params, encoding="latin1"
+        )  # to load from python2
         return params
-    
+
     def _make_emb_state_dict(self, dictionary, parameters):
-        weight = torch.zeros(len(self.vocab)+1, 620) # first dim = zeros -> +1
-        unknown_params = parameters[dictionary['UNK']]
+        weight = torch.zeros(
+            len(self.vocab) + 1, 620
+        )  # first dim = zeros -> +1
+        unknown_params = parameters[dictionary["UNK"]]
         nb_unknown = 0
         for id_weight, word in enumerate(self.vocab):
             if word in dictionary:
                 id_params = dictionary[word]
                 params = parameters[id_params]
             else:
-                #print('Warning: word `{}` not in dictionary'.format(word))
+                # print('Warning: word `{}` not in dictionary'.format(word))
                 params = unknown_params
                 nb_unknown += 1
-            weight[id_weight+1] = torch.from_numpy(params)
-        state_dict = OrderedDict({'weight':weight})
+            weight[id_weight + 1] = torch.from_numpy(params)
+        state_dict = OrderedDict({"weight": weight})
         if nb_unknown > 0:
-            print('Warning: {}/{} words are not in dictionary, thus set UNK'
-                  .format(nb_unknown, len(dictionary)))
+            print(
+                "Warning: {}/{} words are not in dictionary, thus set UNK".format(
+                    nb_unknown, len(dictionary)
+                )
+            )
         return state_dict
-    
+
     def _load_embeddings(self, emb_fpath=None):
         if self.save:
             import hashlib
             import pickle
+
             # http://stackoverflow.com/questions/20416468/fastest-way-to-get-a-hash-from-a-list-in-python
             hash_id = hashlib.sha256(pickle.dumps(self.vocab, -1)).hexdigest()
-            path = emb_fpath if emb_fpath else 'st_embedding_'+str(hash_id)+'.pth'
+            path = (
+                emb_fpath
+                if emb_fpath
+                else "st_embedding_" + str(hash_id) + ".pth"
+            )
         if self.save and os.path.exists(path):
             self.embedding = torch.load(path)
         else:
-            self.embedding = nn.Embedding(num_embeddings=len(self.vocab) + 1,
-                                          embedding_dim=620,
-                                          padding_idx=0, # -> first_dim = zeros
-                                          sparse=False)
+            self.embedding = nn.Embedding(
+                num_embeddings=len(self.vocab) + 1,
+                embedding_dim=620,
+                padding_idx=0,  # -> first_dim = zeros
+                sparse=False,
+            )
             dictionary = self._load_dictionary()
             parameters = self._load_emb_params()
             state_dict = self._make_emb_state_dict(dictionary, parameters)
@@ -518,7 +563,7 @@ class SGNN(nn.Module):
             if self.save:
                 torch.save(self.embedding, path)
         return self.embedding
-    
+
     def load_argw_vocabs(self, fpath):
         key2idx, _, _ = indices.load_argw(fpath)
         return key2idx.keys()
